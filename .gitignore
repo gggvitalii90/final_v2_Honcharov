@@ -1,0 +1,23 @@
+# Внутренние документы (не для репозитория)
+STUDENT_PROFILE.md
+
+# Секреты
+.env
+*.key
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+.venv/
+venv/
+
+# Excel/Office временные файлы
+~$*.xlsx
+~$*.xls
+~$*.docx
+
+# OS
+Thumbs.db
+desktop.ini
+.DS_Store
