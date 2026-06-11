@@ -127,17 +127,19 @@ PLOTLY_TEMPLATE = dict(
     paper_bgcolor=COLORS['card'],
     plot_bgcolor=COLORS['card'],
     font=dict(color=COLORS['text'], size=12),
-    xaxis=dict(gridcolor=COLORS['border'], zerolinecolor=COLORS['border']),
-    yaxis=dict(gridcolor=COLORS['border'], zerolinecolor=COLORS['border']),
     colorway=[COLORS['accent'], COLORS['green'], COLORS['yellow'],
               COLORS['red'], '#9d4edd', '#06d6a0'],
     margin=dict(l=40, r=20, t=40, b=40),
 )
 
+AXIS_STYLE = dict(gridcolor=COLORS['border'], zerolinecolor=COLORS['border'])
+
 
 def make_fig(fig):
     """Применяет единый тёмный стиль ко всем графикам."""
     fig.update_layout(**PLOTLY_TEMPLATE)
+    fig.update_xaxes(**AXIS_STYLE)
+    fig.update_yaxes(**AXIS_STYLE)
     return fig
 
 
