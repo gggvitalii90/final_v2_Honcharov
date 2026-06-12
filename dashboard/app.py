@@ -131,15 +131,15 @@ PLOTLY_TEMPLATE = dict(
     font=dict(color=COLORS['text'], size=12),
     colorway=[COLORS['accent'], COLORS['green'], COLORS['yellow'],
               COLORS['red'], '#9d4edd', '#06d6a0'],
-    margin=dict(l=40, r=20, t=40, b=40),
 )
 
 AXIS_STYLE = dict(gridcolor=COLORS['border'], zerolinecolor=COLORS['border'])
 
 
-def make_fig(fig):
+def make_fig(fig, margin=None):
     """Применяет единый тёмный стиль ко всем графикам."""
     fig.update_layout(**PLOTLY_TEMPLATE)
+    fig.update_layout(margin=margin or dict(l=40, r=20, t=50, b=40))
     fig.update_xaxes(**AXIS_STYLE)
     fig.update_yaxes(**AXIS_STYLE)
     return fig
@@ -185,15 +185,14 @@ def tab_funnel():
         yaxis='y2'
     ))
     fig_trend.update_layout(
-        **PLOTLY_TEMPLATE,
         title=dict(text='Динамика лидов и конверсии по месяцам', y=0.95),
         yaxis=dict(title='Лидов', gridcolor=COLORS['border']),
         yaxis2=dict(title='Конверсия %', overlaying='y', side='right',
                     gridcolor='rgba(0,0,0,0)'),
         legend=dict(orientation='h', x=0, y=-0.2),
         barmode='overlay',
-        margin=dict(l=40, r=40, t=50, b=60),
     )
+    make_fig(fig_trend, margin=dict(l=40, r=40, t=50, b=60))
 
     # Воронка — только 6 ключевых стадий воронки продаж
     stage_counts = deals['Stage'].value_counts()
@@ -211,11 +210,8 @@ def tab_funnel():
         marker=dict(color=funnel_colors),
         connector=dict(line=dict(color=COLORS['border'], width=1)),
     ))
-    fig_funnel.update_layout(
-        **PLOTLY_TEMPLATE,
-        title='Воронка продаж (6 стадий)',
-        margin=dict(l=10, r=10, t=50, b=20),
-    )
+    fig_funnel.update_layout(title='Воронка продаж (6 стадий)')
+    make_fig(fig_funnel, margin=dict(l=10, r=10, t=50, b=20))
 
     return html.Div([
         # KPI-строка
