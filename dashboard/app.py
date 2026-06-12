@@ -10,7 +10,7 @@ import numpy as np
 import plotly.graph_objects as go
 import plotly.express as px
 import dash
-from dash import dcc, html, Input, Output
+from dash import dcc, html
 import dash_bootstrap_components as dbc
 from pathlib import Path
 
@@ -522,5 +522,8 @@ app.layout = html.Div(
 )
 
 
+# Expose Flask server for Vercel (WSGI entry point)
+server = app.server
+
 if __name__ == '__main__':
-    app.run(debug=False, port=8052)
+    app.run(debug=True, port=8055)
