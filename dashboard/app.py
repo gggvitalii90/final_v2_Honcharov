@@ -488,44 +488,38 @@ app.layout = html.Div(
                    style={'color': COLORS['subtext'], 'marginBottom': '20px'}),
         ]),
 
-        # Вкладки
+        # Вкладки — контент рендерится сразу, без callback
         dbc.Tabs(
-            id='tabs',
-            active_tab='funnel',
             children=[
-                dbc.Tab(label='Воронка и динамика', tab_id='funnel',
-                        label_style={'color': COLORS['subtext']},
-                        active_label_style={'color': COLORS['accent']}),
-                dbc.Tab(label='Маркетинг (CAC / ROAS)', tab_id='marketing',
-                        label_style={'color': COLORS['subtext']},
-                        active_label_style={'color': COLORS['accent']}),
-                dbc.Tab(label='Менеджеры по продажам', tab_id='sales',
-                        label_style={'color': COLORS['subtext']},
-                        active_label_style={'color': COLORS['accent']}),
-                dbc.Tab(label='Продукты и юнит-экономика', tab_id='products',
-                        label_style={'color': COLORS['subtext']},
-                        active_label_style={'color': COLORS['accent']}),
+                dbc.Tab(
+                    label='Воронка и динамика',
+                    children=tab_funnel(),
+                    label_style={'color': COLORS['subtext']},
+                    active_label_style={'color': COLORS['accent']},
+                ),
+                dbc.Tab(
+                    label='Маркетинг (CAC / ROAS)',
+                    children=tab_marketing(),
+                    label_style={'color': COLORS['subtext']},
+                    active_label_style={'color': COLORS['accent']},
+                ),
+                dbc.Tab(
+                    label='Менеджеры по продажам',
+                    children=tab_sales(),
+                    label_style={'color': COLORS['subtext']},
+                    active_label_style={'color': COLORS['accent']},
+                ),
+                dbc.Tab(
+                    label='Продукты и юнит-экономика',
+                    children=tab_products(),
+                    label_style={'color': COLORS['subtext']},
+                    active_label_style={'color': COLORS['accent']},
+                ),
             ],
             style={'marginBottom': '24px'},
         ),
-
-        # Контент вкладки
-        html.Div(id='tab-content'),
     ]
 )
-
-
-@app.callback(Output('tab-content', 'children'), Input('tabs', 'active_tab'))
-def render_tab(tab):
-    if tab == 'funnel':
-        return tab_funnel()
-    if tab == 'marketing':
-        return tab_marketing()
-    if tab == 'sales':
-        return tab_sales()
-    if tab == 'products':
-        return tab_products()
-    return html.Div('Выберите вкладку')
 
 
 if __name__ == '__main__':
