@@ -2,7 +2,7 @@
 """
 Финальный проект DA — интерактивный дашборд.
 Запуск: python dashboard/app.py
-Откроется на http://127.0.0.1:8050
+Откроется на http://127.0.0.1:8051
 """
 
 import pandas as pd
@@ -12,11 +12,13 @@ import plotly.express as px
 import dash
 from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
+from pathlib import Path
 
 # ================================================================
 # ЗАГРУЗКА ДАННЫХ
 # ================================================================
-DATA = '../data_clean/'
+BASE_DIR = Path(__file__).resolve().parent.parent
+DATA_DIR = BASE_DIR / 'data_clean'
 
 GS_CHANNELS = (
     'https://docs.google.com/spreadsheets/d/e/'
@@ -34,9 +36,9 @@ GS_KPI = (
     '/pub?gid=1640872499&single=true&output=csv'
 )
 
-deals = pd.read_csv(DATA + 'deals_clean.csv', low_memory=False)
-calls = pd.read_csv(DATA + 'calls_clean.csv', low_memory=False)
-spend = pd.read_csv(DATA + 'spend_clean.csv', low_memory=False)
+deals = pd.read_csv(DATA_DIR / 'deals_clean.csv', low_memory=False)
+calls = pd.read_csv(DATA_DIR / 'calls_clean.csv', low_memory=False)
+spend = pd.read_csv(DATA_DIR / 'spend_clean.csv', low_memory=False)
 ue_channels = pd.read_csv(GS_CHANNELS)
 ue_products = pd.read_csv(GS_PRODUCTS)
 ue_kpi = pd.read_csv(GS_KPI)
@@ -184,34 +186,36 @@ def tab_funnel():
     ))
     fig_trend.update_layout(
         **PLOTLY_TEMPLATE,
-        title='Динамика лидов и конверсии по месяцам',
+        title=dict(text='Динамика лидов и конверсии по месяцам', y=0.95),
         yaxis=dict(title='Лидов', gridcolor=COLORS['border']),
         yaxis2=dict(title='Конверсия %', overlaying='y', side='right',
                     gridcolor='rgba(0,0,0,0)'),
-        legend=dict(orientation='h', y=1.1),
+        legend=dict(orientation='h', x=0, y=-0.2),
         barmode='overlay',
+        margin=dict(l=40, r=40, t=50, b=60),
     )
 
-    # Воронка по стадиям
+    # Воронка — только 6 ключевых стадий воронки продаж
     stage_counts = deals['Stage'].value_counts()
-    funnel_order = ['Payment Done', 'Waiting For Payment', 'Qualificated',
-                    'Registered on Webinar', 'Call Delayed', 'Lost']
-    funnel_data = [(s, stage_counts.get(s, 0)) for s in funnel_order
-                   if stage_counts.get(s, 0) > 0]
-    funnel_data += [(s, v) for s, v in stage_counts.items()
-                    if s not in funnel_order]
-    funnel_df = pd.DataFrame(funnel_data, columns=['Stage', 'Count'])
+    funnel_order = ['Lost', 'Call Delayed', 'Registered on Webinar',
+                    'Qualificated', 'Waiting For Payment', 'Payment Done']
+    funnel_vals  = [stage_counts.get(s, 0) for s in funnel_order]
+    funnel_colors = [COLORS['red'], COLORS['subtext'], '#6c757d',
+                     COLORS['yellow'], COLORS['accent'], COLORS['green']]
 
     fig_funnel = go.Figure(go.Funnel(
-        y=funnel_df['Stage'],
-        x=funnel_df['Count'],
+        y=funnel_order,
+        x=funnel_vals,
         textposition='inside',
-        textinfo='value+percent initial',
-        marker=dict(color=[COLORS['green'], COLORS['accent'], COLORS['yellow'],
-                           COLORS['yellow'], COLORS['subtext'], COLORS['red']
-                           ][:len(funnel_df)])
+        textinfo='value+percent total',
+        marker=dict(color=funnel_colors),
+        connector=dict(line=dict(color=COLORS['border'], width=1)),
     ))
-    fig_funnel.update_layout(**PLOTLY_TEMPLATE, title='Воронка продаж')
+    fig_funnel.update_layout(
+        **PLOTLY_TEMPLATE,
+        title='Воронка продаж (6 стадий)',
+        margin=dict(l=10, r=10, t=50, b=20),
+    )
 
     return html.Div([
         # KPI-строка
@@ -529,4 +533,4 @@ def render_tab(tab):
 
 
 if __name__ == '__main__':
-    app.run(debug=False, port=8050)
+    app.run(debug=False, port=8052)
