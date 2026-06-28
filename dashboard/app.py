@@ -20,28 +20,11 @@ from pathlib import Path
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / 'data_clean'
 
-GS_CHANNELS = (
-    'https://docs.google.com/spreadsheets/d/e/'
-    '2PACX-1vR1z7RIwAVG7fBZyEpHeKOrPpE7BPXDnGgbmMX49CJwedF5IYavchKrpedTUEn9X-UClq67HpiLjkRU'
-    '/pub?gid=1215376088&single=true&output=csv'
-)
-GS_PRODUCTS = (
-    'https://docs.google.com/spreadsheets/d/e/'
-    '2PACX-1vR1z7RIwAVG7fBZyEpHeKOrPpE7BPXDnGgbmMX49CJwedF5IYavchKrpedTUEn9X-UClq67HpiLjkRU'
-    '/pub?gid=2057863604&single=true&output=csv'
-)
-GS_KPI = (
-    'https://docs.google.com/spreadsheets/d/e/'
-    '2PACX-1vR1z7RIwAVG7fBZyEpHeKOrPpE7BPXDnGgbmMX49CJwedF5IYavchKrpedTUEn9X-UClq67HpiLjkRU'
-    '/pub?gid=1640872499&single=true&output=csv'
-)
-
-deals = pd.read_csv(DATA_DIR / 'deals_clean.csv', low_memory=False)
-calls = pd.read_csv(DATA_DIR / 'calls_clean.csv', low_memory=False)
+deals = pd.read_csv(DATA_DIR / 'deals_clean.csv', low_memory=False,
+                    dtype={'Id': str, 'Contact Name': str})
+calls = pd.read_csv(DATA_DIR / 'calls_clean.csv', low_memory=False,
+                    dtype={'Id': str, 'CONTACTID': str})
 spend = pd.read_csv(DATA_DIR / 'spend_clean.csv', low_memory=False)
-ue_channels = pd.read_csv(GS_CHANNELS)
-ue_products = pd.read_csv(GS_PRODUCTS)
-ue_kpi = pd.read_csv(GS_KPI)
 
 # Конвертируем даты
 deals['Created Time'] = pd.to_datetime(deals['Created Time'])
@@ -49,10 +32,61 @@ deals['Closing Date'] = pd.to_datetime(deals['Closing Date'], errors='coerce')
 calls['Call Start Time'] = pd.to_datetime(calls['Call Start Time'])
 spend['Date'] = pd.to_datetime(spend['Date'])
 
-deals_real = deals[deals['Is Demo'] == False].copy()
+# Реальные сделки — исключаем демо-доступы за символическую плату (0, 1, 9 €)
+deals_real = deals[~deals['Initial Amount Paid'].isin([0, 1, 9])].copy()
 
 # Временные признаки
 deals['Month'] = deals['Created Time'].dt.to_period('M').dt.to_timestamp()
+
+# ================================================================
+# ЮНИТ-ЭКОНОМИКА — считаем из CSV (раньше тянули из Google Sheets).
+# Колонки совпадают с unit_by_source/продуктами из 04_unit_economics.
+# Google Sheets остаётся источником для Power BI, дашборд — самодостаточен.
+# ================================================================
+def _agg_unit(df, group_col):
+    base = (df.groupby(group_col, observed=True)
+            .apply(lambda x: pd.Series({
+                'Leads': len(x),
+                'Paid': (x['Stage'] == 'Payment Done').sum(),
+                'Revenue': x.loc[(x['Stage'] == 'Payment Done')
+                                 & x['Initial Amount Paid'].notna(),
+                                 'Initial Amount Paid'].sum(),
+            }), include_groups=False)
+            .reset_index())
+    base['C1 %'] = (base['Paid'] / base['Leads'] * 100).round(2)
+    return base
+
+
+# По каналам (Source)
+ue_channels = _agg_unit(deals_real, 'Source')
+_spend_src = (spend.groupby('Source', observed=True)['Spend'].sum()
+              .reset_index().rename(columns={'Spend': 'Total Spend'}))
+ue_channels = ue_channels.merge(_spend_src, on='Source', how='left')
+ue_channels['Total Spend'] = ue_channels['Total Spend'].fillna(0)
+ue_channels['CAC'] = np.where(ue_channels['Paid'] > 0,
+                              (ue_channels['Total Spend'] / ue_channels['Paid']).round(2), np.nan)
+ue_channels['ARPPU'] = np.where(ue_channels['Paid'] > 0,
+                                (ue_channels['Revenue'] / ue_channels['Paid']).round(2), np.nan)
+ue_channels['ROAS'] = np.where(ue_channels['Total Spend'] > 0,
+                               (ue_channels['Revenue'] / ue_channels['Total Spend']).round(2), np.nan)
+ue_channels = ue_channels.sort_values('Leads', ascending=False)
+
+# По продуктам (Product) — ARPPU как медианный чек
+_wp = deals_real[deals_real['Product'].notna()]
+ue_products = _agg_unit(_wp, 'Product')
+_prod_arppu = (_wp[_wp['Stage'] == 'Payment Done']
+               .groupby('Product', observed=True)['Initial Amount Paid'].median()
+               .reset_index().rename(columns={'Initial Amount Paid': 'ARPPU'}))
+ue_products = ue_products.merge(_prod_arppu, on='Product', how='left')
+
+# KPI-скаляры (итоги по всем каналам)
+total_leads   = len(deals_real)
+total_paid    = int((deals_real['Stage'] == 'Payment Done').sum())
+conv_rate     = round(total_paid / total_leads * 100, 2) if total_leads else 0
+total_spend   = float(spend['Spend'].sum())
+total_revenue = float(ue_channels['Revenue'].sum())
+cac           = total_spend / total_paid if total_paid else 0
+roas          = total_revenue / total_spend if total_spend else 0
 
 # Менеджеры
 manager_stats = (
@@ -65,34 +99,13 @@ manager_stats = (
         'Выручка': x.loc[
             (x['Stage'] == 'Payment Done') &
             x['Initial Amount Paid'].notna() &
-            (x['Is Demo'] == False),
+            (~x['Initial Amount Paid'].isin([0, 1, 9])),
             'Initial Amount Paid'
         ].sum()
     }), include_groups=False)
     .reset_index()
     .sort_values('Конверсия', ascending=False)
 )
-
-# KPI из Google Sheets
-kpi_dict = dict(zip(ue_kpi['Метрика'], ue_kpi['Значение']))
-
-
-def to_num(val, default=0):
-    """Конвертирует значение из Sheets (запятая как десятичный разделитель)."""
-    try:
-        return float(str(val).replace(',', '.').replace(' ', ''))
-    except (ValueError, TypeError):
-        return default
-
-
-# Числа для KPI-карточек
-total_leads   = int(to_num(kpi_dict.get('Лидов всего', 0)))
-total_paid    = int(to_num(kpi_dict.get('Оплат всего', 0)))
-conv_rate     = to_num(kpi_dict.get('Конверсия C1 %', 0))
-total_spend   = to_num(kpi_dict.get('Расходы € (итого)', 0))
-total_revenue = to_num(kpi_dict.get('Выручка € (итого)', 0))
-cac           = to_num(kpi_dict.get('CAC € (средний)', 0))
-roas          = to_num(kpi_dict.get('ROAS (общий)', 0))
 
 # Список месяцев для слайсера
 months_sorted = sorted(deals['Month'].dropna().unique())
@@ -296,6 +309,45 @@ def tab_marketing():
     fig_table.update_layout(**PLOTLY_TEMPLATE, title='Юнит-экономика по каналам',
                             height=350)
 
+    # CAC и ROAS по месяцам (из CSV: Spend по дате расхода,
+    # оплаты/выручка по месяцу создания сделки — полное покрытие 854 оплат)
+    dr = deals_real.copy()
+    dr['Month'] = dr['Created Time'].dt.to_period('M').dt.to_timestamp()
+    paid_dr = dr[dr['Stage'] == 'Payment Done']
+
+    sp = spend.copy()
+    sp['Month'] = sp['Date'].dt.to_period('M').dt.to_timestamp()
+
+    mon = pd.DataFrame({
+        'Spend':   sp.groupby('Month')['Spend'].sum(),
+        'Оплат':   paid_dr.groupby('Month').size(),
+        'Выручка': paid_dr[paid_dr['Initial Amount Paid'].notna()]
+                   .groupby('Month')['Initial Amount Paid'].sum(),
+    }).fillna(0)
+    mon['CAC']  = (mon['Spend'] / mon['Оплат']).replace([np.inf, -np.inf], np.nan).round(0)
+    mon['ROAS'] = (mon['Выручка'] / mon['Spend']).replace([np.inf, -np.inf], np.nan).round(2)
+    mon = mon.reset_index()
+
+    fig_ue_trend = go.Figure()
+    fig_ue_trend.add_trace(go.Scatter(
+        x=mon['Month'], y=mon['CAC'], name='CAC €',
+        mode='lines+markers', line=dict(color=COLORS['yellow'], width=2), yaxis='y'
+    ))
+    fig_ue_trend.add_trace(go.Scatter(
+        x=mon['Month'], y=mon['ROAS'], name='ROAS',
+        mode='lines+markers', line=dict(color=COLORS['green'], width=2), yaxis='y2'
+    ))
+    fig_ue_trend.add_hline(y=1, line_dash='dash', line_color=COLORS['subtext'],
+                           yref='y2')
+    fig_ue_trend.update_layout(
+        title=dict(text='CAC и ROAS по месяцам', y=0.95),
+        yaxis=dict(title='CAC, €', gridcolor=COLORS['border']),
+        yaxis2=dict(title='ROAS, x', overlaying='y', side='right',
+                    gridcolor='rgba(0,0,0,0)'),
+        legend=dict(orientation='h', x=0, y=-0.2),
+    )
+    make_fig(fig_ue_trend, margin=dict(l=40, r=40, t=50, b=60))
+
     return html.Div([
         dbc.Row([
             dbc.Col(kpi_card('Расходы €',  f'{total_spend:,.0f}', color=COLORS['red']), md=3),
@@ -303,6 +355,10 @@ def tab_marketing():
             dbc.Col(kpi_card('CAC €',      f'{cac:,.0f}', color=COLORS['yellow']), md=3),
             dbc.Col(kpi_card('ROAS',       f'{roas:.2f}x', color=COLORS['accent']), md=3),
         ], className='g-3 mb-4'),
+
+        dbc.Row([
+            dbc.Col(dcc.Graph(figure=make_fig(fig_ue_trend)), md=12),
+        ], className='g-3 mb-3'),
 
         dbc.Row([
             dbc.Col(dcc.Graph(figure=make_fig(fig_cac)), md=6),
