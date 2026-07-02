@@ -19,6 +19,11 @@ venv/
 ~$*.xls
 ~$*.docx
 
+# GeoNames (большой файл, скачивается автоматически при запуске ноутбука)
+data/cities500.txt
+data/cities500.zip
+data/readme.txt
+
 # OS
 Thumbs.db
 desktop.ini
