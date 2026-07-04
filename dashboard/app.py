@@ -2,7 +2,7 @@
 """
 Финальный проект DA — интерактивный дашборд.
 Запуск: python dashboard/app.py
-Откроется на http://127.0.0.1:8051
+Откроется на http://127.0.0.1:8055
 """
 
 import pandas as pd
@@ -39,16 +39,16 @@ deals_real = deals[~deals['Initial Amount Paid'].isin([0, 1, 9])].copy()
 deals['Month'] = deals['Created Time'].dt.to_period('M').dt.to_timestamp()
 
 # ================================================================
-# ЮНИТ-ЭКОНОМИКА — считаем из CSV (раньше тянули из Google Sheets).
-# Колонки совпадают с unit_by_source/продуктами из 04_unit_economics.
-# Google Sheets остаётся источником для Power BI, дашборд — самодостаточен.
+# ЮНИТ-ЭКОНОМИКА — локальная демонстрация из CSV.
+# Финальная unit economics считается в Google Sheets; здесь показываем первый платёж,
+# а не полную признанную выручку.
 # ================================================================
 def _agg_unit(df, group_col):
     base = (df.groupby(group_col, observed=True)
             .apply(lambda x: pd.Series({
                 'Leads': len(x),
-                'Paid': (x['Stage'] == 'Payment Done').sum(),
-                'Revenue': x.loc[(x['Stage'] == 'Payment Done')
+                'Paid': ((x['Stage'] == 'Payment Done') & x['Initial Amount Paid'].notna()).sum(),
+                'First Payment Amount': x.loc[(x['Stage'] == 'Payment Done')
                                  & x['Initial Amount Paid'].notna(),
                                  'Initial Amount Paid'].sum(),
             }), include_groups=False)
@@ -65,28 +65,28 @@ ue_channels = ue_channels.merge(_spend_src, on='Source', how='left')
 ue_channels['Total Spend'] = ue_channels['Total Spend'].fillna(0)
 ue_channels['CAC'] = np.where(ue_channels['Paid'] > 0,
                               (ue_channels['Total Spend'] / ue_channels['Paid']).round(2), np.nan)
-ue_channels['ARPPU'] = np.where(ue_channels['Paid'] > 0,
-                                (ue_channels['Revenue'] / ue_channels['Paid']).round(2), np.nan)
-ue_channels['ROAS'] = np.where(ue_channels['Total Spend'] > 0,
-                               (ue_channels['Revenue'] / ue_channels['Total Spend']).round(2), np.nan)
+ue_channels['Avg First Payment'] = np.where(ue_channels['Paid'] > 0,
+                                (ue_channels['First Payment Amount'] / ue_channels['Paid']).round(2), np.nan)
+ue_channels['First Payment Return'] = np.where(ue_channels['Total Spend'] > 0,
+                               (ue_channels['First Payment Amount'] / ue_channels['Total Spend']).round(2), np.nan)
 ue_channels = ue_channels.sort_values('Leads', ascending=False)
 
-# По продуктам (Product) — ARPPU как медианный чек
+# По продуктам (Product) — Avg First Payment как медианный чек
 _wp = deals_real[deals_real['Product'].notna()]
 ue_products = _agg_unit(_wp, 'Product')
 _prod_arppu = (_wp[_wp['Stage'] == 'Payment Done']
                .groupby('Product', observed=True)['Initial Amount Paid'].median()
-               .reset_index().rename(columns={'Initial Amount Paid': 'ARPPU'}))
+               .reset_index().rename(columns={'Initial Amount Paid': 'Avg First Payment'}))
 ue_products = ue_products.merge(_prod_arppu, on='Product', how='left')
 
 # KPI-скаляры (итоги по всем каналам)
 total_leads   = len(deals_real)
-total_paid    = int((deals_real['Stage'] == 'Payment Done').sum())
+total_paid    = int(((deals_real['Stage'] == 'Payment Done') & deals_real['Initial Amount Paid'].notna()).sum())
 conv_rate     = round(total_paid / total_leads * 100, 2) if total_leads else 0
 total_spend   = float(spend['Spend'].sum())
-total_revenue = float(ue_channels['Revenue'].sum())
+total_first_payment = float(ue_channels['First Payment Amount'].sum())
 cac           = total_spend / total_paid if total_paid else 0
-roas          = total_revenue / total_spend if total_spend else 0
+first_payment_return          = total_first_payment / total_spend if total_spend else 0
 
 # Менеджеры
 manager_stats = (
@@ -94,9 +94,9 @@ manager_stats = (
     .groupby('Deal Owner Name')
     .apply(lambda x: pd.Series({
         'Сделок': len(x),
-        'Оплат': (x['Stage'] == 'Payment Done').sum(),
-        'Конверсия': round((x['Stage'] == 'Payment Done').sum() / len(x) * 100, 1),
-        'Выручка': x.loc[
+        'Оплат': ((x['Stage'] == 'Payment Done') & x['Initial Amount Paid'].notna()).sum(),
+        'Конверсия': round(((x['Stage'] == 'Payment Done') & x['Initial Amount Paid'].notna()).sum() / len(x) * 100, 1),
+        'Сумма первого платежа': x.loc[
             (x['Stage'] == 'Payment Done') &
             x['Initial Amount Paid'].notna() &
             (~x['Initial Amount Paid'].isin([0, 1, 9])),
@@ -232,7 +232,7 @@ def tab_funnel():
             dbc.Col(kpi_card('Лидов всего',   f'{total_leads:,}'), md=3),
             dbc.Col(kpi_card('Оплат',          f'{total_paid:,}', color=COLORS['green']), md=3),
             dbc.Col(kpi_card('Конверсия C1',   f'{conv_rate:.1f}%', color=COLORS['yellow']), md=3),
-            dbc.Col(kpi_card('Выручка €',      f'{total_revenue:,.0f}', color=COLORS['accent']), md=3),
+            dbc.Col(kpi_card('Первый платёж €',      f'{total_first_payment:,.0f}', color=COLORS['accent']), md=3),
         ], className='g-3 mb-4'),
 
         # Графики
@@ -244,10 +244,10 @@ def tab_funnel():
 
 
 def tab_marketing():
-    """Страница 2: Маркетинг — CAC и ROAS."""
+    """Страница 2: Маркетинг — CAC и First Payment Return."""
 
     # Числовые колонки — очистка (запятые → точки для локали)
-    for col in ['CAC', 'ROAS', 'C1 %', 'Total Spend', 'Revenue', 'ARPPU']:
+    for col in ['CAC', 'First Payment Return', 'C1 %', 'Total Spend', 'First Payment Amount', 'Avg First Payment']:
         if col in ue_channels.columns:
             ue_channels[col] = (pd.to_numeric(
                 ue_channels[col].astype(str).str.replace(',', '.', regex=False),
@@ -272,24 +272,24 @@ def tab_marketing():
     ))
     fig_cac.update_layout(**PLOTLY_TEMPLATE, title='CAC по каналам (€)')
 
-    # ROAS по каналам
-    roas_ch = ue_channels[ue_channels['ROAS'].notna()].sort_values('ROAS', ascending=False)
-    fig_roas = go.Figure(go.Bar(
-        x=roas_ch['ROAS'],
-        y=roas_ch['Source'],
+    # First Payment Return по каналам
+    first_payment_return_ch = ue_channels[ue_channels['First Payment Return'].notna()].sort_values('First Payment Return', ascending=False)
+    fig_first_payment_return = go.Figure(go.Bar(
+        x=first_payment_return_ch['First Payment Return'],
+        y=first_payment_return_ch['Source'],
         orientation='h',
         marker=dict(
-            color=['#2ec4b6' if r >= 1 else '#e63946' for r in roas_ch['ROAS']]
+            color=['#2ec4b6' if r >= 1 else '#e63946' for r in first_payment_return_ch['First Payment Return']]
         ),
-        text=roas_ch['ROAS'].apply(lambda x: f'{x:.2f}x'),
+        text=first_payment_return_ch['First Payment Return'].apply(lambda x: f'{x:.2f}x'),
         textposition='outside',
     ))
-    fig_roas.add_vline(x=1, line_dash='dash', line_color='white',
+    fig_first_payment_return.add_vline(x=1, line_dash='dash', line_color='white',
                        annotation_text='безубыточность')
-    fig_roas.update_layout(**PLOTLY_TEMPLATE, title='ROAS по каналам')
+    fig_first_payment_return.update_layout(**PLOTLY_TEMPLATE, title='First Payment Return по каналам')
 
     # Таблица
-    table_cols = ['Source', 'Leads', 'Paid', 'C1 %', 'Total Spend', 'CAC', 'ARPPU', 'Revenue', 'ROAS']
+    table_cols = ['Source', 'Leads', 'Paid', 'C1 %', 'Total Spend', 'CAC', 'Avg First Payment', 'First Payment Amount', 'First Payment Return']
     tbl = ue_channels[table_cols].sort_values('Leads', ascending=False)
 
     fig_table = go.Figure(go.Table(
@@ -309,11 +309,11 @@ def tab_marketing():
     fig_table.update_layout(**PLOTLY_TEMPLATE, title='Юнит-экономика по каналам',
                             height=350)
 
-    # CAC и ROAS по месяцам (из CSV: Spend по дате расхода,
-    # оплаты/выручка по месяцу создания сделки — полное покрытие 854 оплат)
+    # CAC и First Payment Return по месяцам (из CSV: Spend по дате расхода,
+    # оплаты/первый платёж по месяцу создания сделки — только Payment Done с суммой)
     dr = deals_real.copy()
     dr['Month'] = dr['Created Time'].dt.to_period('M').dt.to_timestamp()
-    paid_dr = dr[dr['Stage'] == 'Payment Done']
+    paid_dr = dr[(dr['Stage'] == 'Payment Done') & dr['Initial Amount Paid'].notna()]
 
     sp = spend.copy()
     sp['Month'] = sp['Date'].dt.to_period('M').dt.to_timestamp()
@@ -321,11 +321,11 @@ def tab_marketing():
     mon = pd.DataFrame({
         'Spend':   sp.groupby('Month')['Spend'].sum(),
         'Оплат':   paid_dr.groupby('Month').size(),
-        'Выручка': paid_dr[paid_dr['Initial Amount Paid'].notna()]
+        'Сумма первого платежа': paid_dr[paid_dr['Initial Amount Paid'].notna()]
                    .groupby('Month')['Initial Amount Paid'].sum(),
     }).fillna(0)
     mon['CAC']  = (mon['Spend'] / mon['Оплат']).replace([np.inf, -np.inf], np.nan).round(0)
-    mon['ROAS'] = (mon['Выручка'] / mon['Spend']).replace([np.inf, -np.inf], np.nan).round(2)
+    mon['First Payment Return'] = (mon['Сумма первого платежа'] / mon['Spend']).replace([np.inf, -np.inf], np.nan).round(2)
     mon = mon.reset_index()
 
     fig_ue_trend = go.Figure()
@@ -334,15 +334,15 @@ def tab_marketing():
         mode='lines+markers', line=dict(color=COLORS['yellow'], width=2), yaxis='y'
     ))
     fig_ue_trend.add_trace(go.Scatter(
-        x=mon['Month'], y=mon['ROAS'], name='ROAS',
+        x=mon['Month'], y=mon['First Payment Return'], name='First Payment Return',
         mode='lines+markers', line=dict(color=COLORS['green'], width=2), yaxis='y2'
     ))
     fig_ue_trend.add_hline(y=1, line_dash='dash', line_color=COLORS['subtext'],
                            yref='y2')
     fig_ue_trend.update_layout(
-        title=dict(text='CAC и ROAS по месяцам', y=0.95),
+        title=dict(text='CAC и First Payment Return по месяцам', y=0.95),
         yaxis=dict(title='CAC, €', gridcolor=COLORS['border']),
-        yaxis2=dict(title='ROAS, x', overlaying='y', side='right',
+        yaxis2=dict(title='First Payment Return, x', overlaying='y', side='right',
                     gridcolor='rgba(0,0,0,0)'),
         legend=dict(orientation='h', x=0, y=-0.2),
     )
@@ -351,9 +351,9 @@ def tab_marketing():
     return html.Div([
         dbc.Row([
             dbc.Col(kpi_card('Расходы €',  f'{total_spend:,.0f}', color=COLORS['red']), md=3),
-            dbc.Col(kpi_card('Выручка €',  f'{total_revenue:,.0f}', color=COLORS['green']), md=3),
+            dbc.Col(kpi_card('Первый платёж €',  f'{total_first_payment:,.0f}', color=COLORS['green']), md=3),
             dbc.Col(kpi_card('CAC €',      f'{cac:,.0f}', color=COLORS['yellow']), md=3),
-            dbc.Col(kpi_card('ROAS',       f'{roas:.2f}x', color=COLORS['accent']), md=3),
+            dbc.Col(kpi_card('First Payment Return',       f'{first_payment_return:.2f}x', color=COLORS['accent']), md=3),
         ], className='g-3 mb-4'),
 
         dbc.Row([
@@ -362,7 +362,7 @@ def tab_marketing():
 
         dbc.Row([
             dbc.Col(dcc.Graph(figure=make_fig(fig_cac)), md=6),
-            dbc.Col(dcc.Graph(figure=make_fig(fig_roas)), md=6),
+            dbc.Col(dcc.Graph(figure=make_fig(fig_first_payment_return)), md=6),
         ], className='g-3 mb-3'),
 
         dbc.Row([
@@ -392,20 +392,20 @@ def tab_sales():
                            title='Конверсия менеджеров в оплату, % (≥ 50 сделок)')
 
     fig_rev = go.Figure(go.Bar(
-        x=active.sort_values('Выручка', ascending=False)['Deal Owner Name'],
-        y=active.sort_values('Выручка', ascending=False)['Выручка'],
+        x=active.sort_values('Сумма первого платежа', ascending=False)['Deal Owner Name'],
+        y=active.sort_values('Сумма первого платежа', ascending=False)['Сумма первого платежа'],
         marker_color=COLORS['accent'],
-        text=active.sort_values('Выручка', ascending=False)['Выручка']
+        text=active.sort_values('Сумма первого платежа', ascending=False)['Сумма первого платежа']
             .apply(lambda x: f'{x:,.0f}'),
         textposition='outside',
     ))
-    fig_rev.update_layout(**PLOTLY_TEMPLATE, title='Выручка по менеджерам, €')
+    fig_rev.update_layout(**PLOTLY_TEMPLATE, title='Сумма первого платежа по менеджерам, €')
 
     # Скаттер: Сделок vs Конверсия
     fig_scatter = px.scatter(
         active,
         x='Сделок', y='Конверсия',
-        size='Выручка', color='Выручка',
+        size='Сумма первого платежа', color='Сумма первого платежа',
         color_continuous_scale=['#e63946', '#f4a261', '#2ec4b6'],
         hover_name='Deal Owner Name',
         text='Deal Owner Name',
@@ -426,7 +426,7 @@ def tab_sales():
             dbc.Col(kpi_card('Нужна помощь', f'{worst["Deal Owner Name"]}',
                              f'{worst["Конверсия"]:.1f}% конверсия',
                              color=COLORS['red']), md=3),
-            dbc.Col(kpi_card('Выручка €', f'{active["Выручка"].sum():,.0f}',
+            dbc.Col(kpi_card('Первый платёж €', f'{active["Сумма первого платежа"].sum():,.0f}',
                              color=COLORS['accent']), md=3),
         ], className='g-3 mb-4'),
 
@@ -444,7 +444,7 @@ def tab_sales():
 def tab_products():
     """Страница 4: Продукты и юнит-экономика."""
 
-    for col in ['C1 %', 'Revenue', 'ARPPU', 'Leads', 'Paid']:
+    for col in ['C1 %', 'First Payment Amount', 'Avg First Payment', 'Leads', 'Paid']:
         if col in ue_products.columns:
             ue_products[col] = pd.to_numeric(
                 ue_products[col].astype(str).str.replace(',', '.', regex=False),
@@ -462,24 +462,24 @@ def tab_products():
     fig_c1.update_layout(**PLOTLY_TEMPLATE, title='Конверсия по продуктам, %')
 
     fig_arppu = go.Figure(go.Bar(
-        x=ue_products.sort_values('ARPPU', ascending=False)['Product'],
-        y=ue_products.sort_values('ARPPU', ascending=False)['ARPPU'],
+        x=ue_products.sort_values('Avg First Payment', ascending=False)['Product'],
+        y=ue_products.sort_values('Avg First Payment', ascending=False)['Avg First Payment'],
         marker_color=COLORS['yellow'],
-        text=ue_products.sort_values('ARPPU', ascending=False)['ARPPU']
+        text=ue_products.sort_values('Avg First Payment', ascending=False)['Avg First Payment']
             .apply(lambda x: f'{x:,.0f} €'),
         textposition='outside',
     ))
-    fig_arppu.update_layout(**PLOTLY_TEMPLATE, title='Медианный чек (ARPPU), €')
+    fig_arppu.update_layout(**PLOTLY_TEMPLATE, title='Медианный первый платёж, €')
 
     fig_pie = go.Figure(go.Pie(
         labels=ue_products['Product'],
-        values=ue_products['Revenue'],
+        values=ue_products['First Payment Amount'],
         hole=0.45,
         marker=dict(colors=[COLORS['accent'], COLORS['green'],
                              COLORS['yellow'], COLORS['red'], '#9d4edd']),
         textinfo='label+percent',
     ))
-    fig_pie.update_layout(**PLOTLY_TEMPLATE, title='Доля выручки по продуктам',
+    fig_pie.update_layout(**PLOTLY_TEMPLATE, title='Доля первого платежа по продуктам',
                           showlegend=False)
 
     # Lost Reason
@@ -501,12 +501,12 @@ def tab_products():
                              ue_products.nlargest(1, 'C1 %')['Product'].iloc[0],
                              f'{ue_products["C1 %"].max():.1f}% конверсия',
                              color=COLORS['green']), md=3),
-            dbc.Col(kpi_card('Выручка лидера',
-                             f'{ue_products["Revenue"].max():,.0f} €',
-                             ue_products.nlargest(1, 'Revenue')['Product'].iloc[0],
+            dbc.Col(kpi_card('Сумма первого платежа лидера',
+                             f'{ue_products["First Payment Amount"].max():,.0f} €',
+                             ue_products.nlargest(1, 'First Payment Amount')['Product'].iloc[0],
                              color=COLORS['accent']), md=3),
-            dbc.Col(kpi_card('Средний ARPPU',
-                             f'{ue_products["ARPPU"].mean():,.0f} €',
+            dbc.Col(kpi_card('Средний первый платёж',
+                             f'{ue_products["Avg First Payment"].mean():,.0f} €',
                              color=COLORS['yellow']), md=3),
         ], className='g-3 mb-4'),
 
@@ -554,7 +554,7 @@ app.layout = html.Div(
                     active_label_style={'color': COLORS['accent']},
                 ),
                 dbc.Tab(
-                    label='Маркетинг (CAC / ROAS)',
+                    label='Маркетинг (CAC / First Payment Return)',
                     children=tab_marketing(),
                     label_style={'color': COLORS['subtext']},
                     active_label_style={'color': COLORS['accent']},
