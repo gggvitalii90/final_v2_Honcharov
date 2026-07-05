@@ -14,7 +14,7 @@
 | 6 | Описательная статистика | `notebooks/02_descriptive.ipynb` | Распределения, категории, первые выводы по таблицам. |
 | 7 | Основной анализ | `notebooks/03_analysis.ipynb` | Временные ряды, кампании, менеджеры, продукты, география, звонки. |
 | 8 | Подготовка unit economics | `notebooks/04_unit_economics.ipynb` | Подготовка clean-данных для Google Sheets и контроль метрик. |
-| 9 | Unit economics | Google Sheets | Source of truth для unit economics, дерева метрик, точек роста и гипотез. |
+| 9 | Unit economics | Google Sheets `1ybv6r_ZyLiyFJv0SggjvJQaiYa568UYCv9r6ml6uIsg` | Source of truth для unit economics, дерева метрик, точек роста и гипотез. |
 | 10 | Дашборд | `final_dashboard_Honcharov_V_120925.pbix`, `dashboard/app.py` | Power BI как основной дашборд, Dash как дополнительная демонстрация. |
 | 11 | Подготовка к защите | `ОТВЕТЫ_НА_ВОПРОСЫ.md`, `PRESENTATION_NOTES.md` | Ответы преподавателю, формулировки ограничений и выводов. |
 
@@ -57,7 +57,7 @@
 |---|---|---|
 | Google Sheets workflow | `PROJECT_PLAN.md`, `04_unit_economics.ipynb` | Зафиксировать, что Sheets является source of truth для unit economics. |
 | First Payment terminology | `04_unit_economics.ipynb`, `dashboard/app.py`, Sheets | Переименовать "Revenue" по первому платежу в `First Payment Amount`. |
-| Revenue recognition | `04_unit_economics.ipynb` или отдельный сценарный блок | Посчитать projected/recognized revenue и refund risk отдельно от базовой unit economics. |
+| Revenue recognition | `03_analysis.ipynb` | Добавить отдельный сценарный блок projected/recognized revenue и refund risk отдельно от базовой unit economics. |
 | Manager roles | `03_analysis.ipynb` | Добавить first-touch vs closer перед финальным рейтингом менеджеров. |
 | Calls before payment | `03_analysis.ipynb` | Посчитать количество звонков до оплаты по `CONTACTID` и `Closing Date`. |
 | Parquet export | scripts/export_clean_parquet.py | Сохранять clean-данные в CSV и Parquet. |

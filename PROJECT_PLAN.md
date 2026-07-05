@@ -73,6 +73,7 @@ final_v2_Honcharov/
 - [ ] Роли менеджеров: first-touch manager, участник коммуникации, deal owner / closer, payment closer.
 - [ ] Проверить, сколько клиентов обрабатывали 2+ менеджера, и не строить несправедливый единый рейтинг без учёта ролей.
 - [ ] Звонки до оплаты: для `Payment Done` + непустой `Initial Amount Paid` посчитать число звонков по `CONTACTID` до `Closing Date`.
+- [ ] Revenue recognition: отдельный сценарный блок projected revenue / recognized revenue / refund risk; не смешивать с базовой unit economics.
 - [ ] Платежи и продукты: Payment Type, Product, Education Type, сумма первого платежа, конверсия.
 - [ ] География и Level of Deutsch: использовать с оговорками из-за пропусков и нестандартизированного ввода.
 - [ ] Сквозные выводы и рекомендации для бизнеса.
@@ -80,7 +81,7 @@ final_v2_Honcharov/
 ## Этап 4. Юнит-экономика и гипотезы — `04_unit_economics.ipynb` + Google Sheets
 
 **Роль Python:**
-- [ ] Подготовить clean-выгрузки для Google Sheets: Deals + Spend, без raw Excel.
+- [ ] Подготовить clean-выгрузки для новой Google Таблицы `1ybv6r_ZyLiyFJv0SggjvJQaiYa568UYCv9r6ml6uIsg`: Deals + Spend, без raw Excel.
 - [ ] Проверить объём, типы, обязательные колонки и базовые контрольные суммы.
 - [ ] Для Google Sheets использовать полноценные очищенные `deals_clean.csv` и `spend_clean.csv`; не создавать отдельную урезанную схему.
 
@@ -90,7 +91,6 @@ final_v2_Honcharov/
 - [ ] Завести `03_methodology` с правилами метрик и фильтрами.
 - [ ] Посчитать unit economics по Source/Campaign/Product: Leads, Paid Deals, First Payment Amount, Spend, C1, CAC, CPL, Avg First Payment, First Payment Return / Spend.
 - [ ] Не называть `Initial Amount Paid` полной выручкой; базовая финансовая метрика — First Payment Amount / сумма первого платежа.
-- [ ] Отдельным сценарным блоком рассмотреть Revenue Recognition: projected revenue, recognized revenue, refund risk.
 - [ ] Сделать дерево метрик, точки роста и 1–2 глубокие гипотезы с тестом до 2 недель.
 - [ ] Подготовить `10_dashboard_export` для Power BI и презентации.
 
