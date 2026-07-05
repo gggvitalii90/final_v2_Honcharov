@@ -3,28 +3,21 @@ from pathlib import Path
 import pandas as pd
 
 
-DEALS_COLUMNS = [
-    'Id', 'Created Time', 'Closing Date', 'Stage', 'Source', 'Campaign',
-    'Product', 'Education Type', 'Payment Type', 'Initial Amount Paid',
-    'Offer Total Amount', 'Quality', 'Deal Owner Name', 'City',
-    'Level of Deutsch', 'Course duration', 'Months of study',
-    'amount_error', 'closing_date_error'
-]
-SPEND_COLUMNS = ['Date', 'Source', 'Campaign', 'Spend', 'Clicks', 'Impressions', 'AdGroup', 'Ad']
+EXPORT_FILES = ['deals_clean.csv', 'spend_clean.csv']
 
 
-def test_google_sheets_unit_exports_exist_with_expected_columns_and_rows():
+def test_google_sheets_exports_are_full_clean_deals_and_spend_csvs():
     export_dir = Path('exports/google_sheets')
-    deals_export = export_dir / 'deals_unit_clean.csv'
-    spend_export = export_dir / 'spend_unit_clean.csv'
+    data_dir = Path('data_clean')
 
-    assert deals_export.exists(), f'Missing Google Sheets export: {deals_export}'
-    assert spend_export.exists(), f'Missing Google Sheets export: {spend_export}'
+    for filename in EXPORT_FILES:
+        clean_path = data_dir / filename
+        export_path = export_dir / filename
 
-    deals = pd.read_csv(deals_export, low_memory=False)
-    spend = pd.read_csv(spend_export, low_memory=False)
+        assert export_path.exists(), f'Missing Google Sheets export: {export_path}'
 
-    assert list(deals.columns) == DEALS_COLUMNS
-    assert list(spend.columns) == SPEND_COLUMNS
-    assert len(deals) == len(pd.read_csv('data_clean/deals_clean.csv', low_memory=False))
-    assert len(spend) == len(pd.read_csv('data_clean/spend_clean.csv', low_memory=False))
+        clean = pd.read_csv(clean_path, low_memory=False)
+        exported = pd.read_csv(export_path, low_memory=False)
+
+        assert list(exported.columns) == list(clean.columns)
+        assert len(exported) == len(clean)

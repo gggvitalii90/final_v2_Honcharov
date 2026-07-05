@@ -60,4 +60,5 @@
 | Revenue recognition | `04_unit_economics.ipynb` или отдельный сценарный блок | Посчитать projected/recognized revenue и refund risk отдельно от базовой unit economics. |
 | Manager roles | `03_analysis.ipynb` | Добавить first-touch vs closer перед финальным рейтингом менеджеров. |
 | Calls before payment | `03_analysis.ipynb` | Посчитать количество звонков до оплаты по `CONTACTID` и `Closing Date`. |
-| Parquet export | `scripts/export_clean_parquet.py` | Сохранять clean-данные в CSV и Parquet. |`n| Google Sheets exports | `scripts/export_google_sheets_inputs.py`, `exports/google_sheets/` | Готовить облегчённые Deals + Spend для загрузки в Google Sheets. |
+| Parquet export | scripts/export_clean_parquet.py | Сохранять clean-данные в CSV и Parquet. |
+| Google Sheets exports | scripts/export_google_sheets_inputs.py, exports/google_sheets/ | Копировать полные clean CSV для Deals + Spend в папку загрузки Google Sheets. |

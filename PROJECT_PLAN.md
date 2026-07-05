@@ -82,7 +82,7 @@ final_v2_Honcharov/
 **Роль Python:**
 - [ ] Подготовить clean-выгрузки для Google Sheets: Deals + Spend, без raw Excel.
 - [ ] Проверить объём, типы, обязательные колонки и базовые контрольные суммы.
-- [ ] При необходимости сформировать облегчённые файлы для загрузки в Sheets.
+- [ ] Для Google Sheets использовать полноценные очищенные `deals_clean.csv` и `spend_clean.csv`; не создавать отдельную урезанную схему.
 
 **Роль Google Sheets:**
 - [ ] Загрузить `deals_clean` и `spend_clean`; Contacts/Calls не нужны для базовой unit economics.

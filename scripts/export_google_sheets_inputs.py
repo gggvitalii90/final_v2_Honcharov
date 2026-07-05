@@ -1,34 +1,18 @@
-"""Create lightweight clean CSV inputs for Google Sheets unit economics.
+"""Copy cleaned Deals and Spend CSV files for Google Sheets import.
 
-The full clean CSV files stay in data_clean/. These exports contain only the
-columns needed for the product analytics workbook, keeping Sheets easier to
-inspect and recalculate.
+Google Sheets receives the same cleaned datasets produced by the cleaning step,
+not a separate reduced schema. We only limit the number of tables: Deals and
+Spend are needed for unit economics; Contacts and Calls stay in Python analysis.
 """
 
 from pathlib import Path
-
-import pandas as pd
+import shutil
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BASE_DIR / "data_clean"
 EXPORT_DIR = BASE_DIR / "exports" / "google_sheets"
-
-DEALS_COLUMNS = [
-    "Id", "Created Time", "Closing Date", "Stage", "Source", "Campaign",
-    "Product", "Education Type", "Payment Type", "Initial Amount Paid",
-    "Offer Total Amount", "Quality", "Deal Owner Name", "City",
-    "Level of Deutsch", "Course duration", "Months of study",
-    "amount_error", "closing_date_error",
-]
-SPEND_COLUMNS = ["Date", "Source", "Campaign", "Spend", "Clicks", "Impressions", "AdGroup", "Ad"]
-
-
-def _select_columns(df: pd.DataFrame, columns: list[str], source_name: str) -> pd.DataFrame:
-    missing = [col for col in columns if col not in df.columns]
-    if missing:
-        raise KeyError(f"{source_name} is missing required columns: {missing}")
-    return df.loc[:, columns]
+EXPORT_FILES = ["deals_clean.csv", "spend_clean.csv"]
 
 
 def export_google_sheets_inputs(
@@ -37,18 +21,14 @@ def export_google_sheets_inputs(
 ) -> list[Path]:
     export_dir.mkdir(parents=True, exist_ok=True)
 
-    deals = pd.read_csv(data_dir / "deals_clean.csv", low_memory=False)
-    spend = pd.read_csv(data_dir / "spend_clean.csv", low_memory=False)
-
-    outputs = [
-        (export_dir / "deals_unit_clean.csv", _select_columns(deals, DEALS_COLUMNS, "deals_clean.csv")),
-        (export_dir / "spend_unit_clean.csv", _select_columns(spend, SPEND_COLUMNS, "spend_clean.csv")),
-    ]
-
     written: list[Path] = []
-    for path, df in outputs:
-        df.to_csv(path, index=False, encoding="utf-8-sig")
-        written.append(path)
+    for filename in EXPORT_FILES:
+        source = data_dir / filename
+        target = export_dir / filename
+        if not source.exists():
+            raise FileNotFoundError(f"Missing source CSV: {source}")
+        shutil.copy2(source, target)
+        written.append(target)
 
     return written
 
