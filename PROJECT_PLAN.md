@@ -55,6 +55,7 @@ final_v2_Honcharov/
 - [ ] Даты: Created/Modified/Closing/Call Start Time (`dd.mm.yyyy HH:MM`), SLA → секунды/timedelta.
 - [ ] Числовые: Initial Amount Paid, Offer Total Amount, Course duration, Months of study.
 - [ ] Аномалии: Closing < Created — флаг/исключение из анализа времени; IAP > OTA — флаг; демо 0/1/9 — флаг.
+- [ ] Payment Type: если `Payment Type` пустой и `Initial Amount Paid == Offer Total Amount`, заполнить `One Payment` в пункте 4.7 до итогов очистки.
 - [ ] Нормализация: Level of Deutsch, City, Education Type `#REF!`, Quality `F`.
 - [ ] Сохранить `data_clean/*.csv` и дополнительно `data_clean/*.parquet` для Power BI.
 
